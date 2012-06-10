@@ -1,0 +1,4 @@
+duphunter
+=========
+
+Duplicated files hunter
