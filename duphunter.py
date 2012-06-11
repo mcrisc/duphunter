@@ -16,9 +16,8 @@ class ContentComparator(object):
 
     def hash(self, filename):
         if filename not in self._cache:
-            fd = open(filename, 'rb')
-            self._cache[filename] = hashlib.md5(fd.read()).hexdigest()
-            fd.close()
+            with open(filename, 'rb') as fd:
+                self._cache[filename] = hashlib.md5(fd.read()).hexdigest()
         return self._cache[filename]
 
     def equals(self, f1, f2):
