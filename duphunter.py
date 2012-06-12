@@ -10,18 +10,11 @@ import hashlib
 import os
 
 
-class ContentComparator(object):
-    def __init__(self):
-        self._cache = {}
-
-    def hash(self, filename):
-        if filename not in self._cache:
-            with open(filename, 'rb') as fd:
-                self._cache[filename] = hashlib.md5(fd.read()).hexdigest()
-        return self._cache[filename]
-
-    def equals(self, f1, f2):
-        return self.hash(f1) == self.hash(f2)
+def _compute_digest(filename):
+    digest = ''
+    with open(filename, 'rb') as fd:
+        digest = hashlib.md5(fd.read()).hexdigest()
+    return digest
 
 def _scan(root):
     for dirpath, dirnames, filenames in os.walk(root):
@@ -30,26 +23,28 @@ def _scan(root):
             if size > 0:
                 yield f, size
 
+_SINGLE_FILE = 'FAKE_DIGEST'
 def hunt(root):
     candidates = {}
-    duplicated = {}
-    ccomp = ContentComparator()
-    # hunting duplicated
+    # analysing all files
     for filename, size in _scan(root):
         if size in candidates:
-            for c in candidates[size]:
-                if ccomp.equals(c, filename):
-                    group = (ccomp.hash(filename), size)
-                    duplicated.setdefault(group, set()).add(c)
-                    duplicated[group].add(filename)
-        candidates.setdefault(size, []).append(filename)
-    # transforming result into more convenient structure
+            groups = candidates[size]
+            if _SINGLE_FILE in groups:
+                prev_file = groups[_SINGLE_FILE][0]
+                del groups[_SINGLE_FILE]
+                groups[_compute_digest(prev_file)] = [prev_file]
+            groups.setdefault(_compute_digest(filename), []).append(filename)
+        else:
+            # defers digest computing
+            candidates[size] = {_SINGLE_FILE: [filename]}
+    # identifying duplicated
     result = []
-    for k in duplicated.keys():
-        filenames = list(duplicated[k])
-        filenames.sort()
-        size = k[1]
-        result.append((size, filenames))
+    for size, groups in candidates.items():
+        for filenames in groups.values():
+            if len(filenames) > 1:
+                filenames.sort()
+                result.append((size, filenames))
     result.sort(key=lambda v: v[0], reverse=True)
     return result
 
